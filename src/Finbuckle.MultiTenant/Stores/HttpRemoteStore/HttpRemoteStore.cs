@@ -13,14 +13,16 @@
 // limitations under the License.
 
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using Finbuckle.MultiTenant.Internal;
 
 namespace Finbuckle.MultiTenant.Stores
 {
     public class HttpRemoteStore<TTenantInfo> : IMultiTenantStore<TTenantInfo>
         where TTenantInfo : class, ITenantInfo, new()
     {
-        internal static readonly string defaultEndpointTemplateIdentifierToken = "{__tenant__}";
+        internal static readonly string defaultEndpointTemplateIdentifierToken = $"{{{Constants.TenantToken}}}";
         private readonly HttpRemoteStoreClient<TTenantInfo> client;
         private readonly string endpointTemplate;
 
@@ -53,6 +55,11 @@ namespace Finbuckle.MultiTenant.Stores
         public Task<TTenantInfo> TryGetAsync(string id)
         {
             throw new System.NotImplementedException();
+        }
+
+        public Task<IEnumerable<TTenantInfo>> GetAllAsync()
+        {
+	        throw new NotImplementedException();
         }
 
         public async Task<TTenantInfo> TryGetByIdentifierAsync(string identifier)

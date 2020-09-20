@@ -15,6 +15,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Finbuckle.MultiTenant.Internal;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -28,14 +29,9 @@ namespace Finbuckle.MultiTenant.Strategies
 {
     public class RemoteAuthenticationCallbackStrategy : IMultiTenantStrategy
     {
-        internal static readonly string TenantKey = "__tenant__";
         private readonly ILogger<RemoteAuthenticationCallbackStrategy> logger;
         
         public int Priority { get => -900; }
-
-        public RemoteAuthenticationCallbackStrategy()
-        {
-        }
 
         public RemoteAuthenticationCallbackStrategy(ILogger<RemoteAuthenticationCallbackStrategy> logger)
         {
@@ -53,18 +49,21 @@ namespace Finbuckle.MultiTenant.Strategies
             var schemes = httpContext.RequestServices.GetRequiredService<IAuthenticationSchemeProvider>();
 
             foreach (var scheme in (await schemes.GetRequestHandlerSchemesAsync()).
-                Where(s => s.HandlerType.ImplementsOrInheritsUnboundGeneric(typeof(RemoteAuthenticationHandler<>))))
+                Where(s => typeof(IAuthenticationRequestHandler).IsAssignableFrom(s.HandlerType)))
+                // Where(s => s.HandlerType.ImplementsOrInheritsUnboundGeneric(typeof(RemoteAuthenticationHandler<>))))
             {
+                // Unfortnately we can't rely on the ShouldHandleAsync method since OpenId Connect handler doesn't use it.
+                // Instead we'll get the paths to check from the options.
                 var optionsType = scheme.HandlerType.GetProperty("Options").PropertyType;
                 var optionsMonitorType = typeof(IOptionsMonitor<>).MakeGenericType(optionsType);
                 var optionsMonitor = httpContext.RequestServices.GetRequiredService(optionsMonitorType);
                 var options = optionsMonitorType.GetMethod("Get").Invoke(optionsMonitor, new[] { scheme.Name }) as RemoteAuthenticationOptions;
-                
+
                 var callbackPath = (PathString)(optionsType.GetProperty("CallbackPath")?.GetValue(options) ?? PathString.Empty);
                 var signedOutCallbackPath = (PathString)(optionsType.GetProperty("SignedOutCallbackPath")?.GetValue(options) ?? PathString.Empty);
 
-                if (callbackPath != PathString.Empty && callbackPath == httpContext.Request.Path ||
-                    signedOutCallbackPath != PathString.Empty && signedOutCallbackPath == httpContext.Request.Path)
+                if (callbackPath.HasValue && callbackPath == httpContext.Request.Path ||
+                    signedOutCallbackPath.HasValue && signedOutCallbackPath == httpContext.Request.Path)
                 {
                     try
                     {
@@ -85,22 +84,18 @@ namespace Finbuckle.MultiTenant.Strategies
                             state = form.Where(i => i.Key.ToLowerInvariant() == "state").Single().Value;
                         }
 
-                        var oAuthOptions = options as OAuthOptions;
-                        var openIdConnectOptions = options as OpenIdConnectOptions;
-
-                        var properties = oAuthOptions?.StateDataFormat.Unprotect(state) ??
-                                         openIdConnectOptions?.StateDataFormat.Unprotect(state);
+                        var properties = ((dynamic)options).StateDataFormat.Unprotect(state) as AuthenticationProperties;
 
                         if (properties == null)
                         {
-                            logger.LogWarning("A tenant could not be determined because no state paraameter passed with the remote authentication callback.");
+                            if(logger != null)
+                                logger.LogWarning("A tenant could not be determined because no state paraameter passed with the remote authentication callback.");
                             return null;
                         }
 
-                        if (properties.Items.Keys.Contains(TenantKey))
-                        {
-                            return properties.Items[TenantKey] as string;
-                        }
+                        properties.Items.TryGetValue(Constants.TenantToken, out var identifier);
+
+                        return identifier;
                     }
                     catch (Exception e)
                     {
