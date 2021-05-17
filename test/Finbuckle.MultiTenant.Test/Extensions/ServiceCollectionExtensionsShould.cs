@@ -1,4 +1,4 @@
-//    Copyright 2018-2020 Andrew White
+//    Copyright 2018-2020 Finbuckle LLC, Andrew White, and Contributors
 // 
 //    Licensed under the Apache License, Version 2.0 (the "License");
 //    you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ public class ServiceCollectionExtensionsShould
     }
 
     [Fact]
-    public void RegisterIMultitenantContextAccessorInDI()
+    public void RegisterIMultiTenantContextAccessorInDI()
     {
         var services = new ServiceCollection();
         services.AddMultiTenant<TenantInfo>();
@@ -97,7 +97,7 @@ public class ServiceCollectionExtensionsShould
     }
 
     [Fact]
-    public void RegisterIMultitenantContextAccessorGenericInDI()
+    public void RegisterIMultiTenantContextAccessorGenericInDI()
     {
         var services = new ServiceCollection();
         services.AddMultiTenant<TenantInfo>();
